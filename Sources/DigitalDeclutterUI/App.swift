@@ -7,6 +7,8 @@ struct DeclutterApp: App {
     @Environment(\.openSettings) private var openSettings
     @State private var config = Persistence.loadConfiguration()
     @State private var isRunning = false
+    /// Unix timestamp of the last completed run; 0 means never run.
+    @AppStorage("lastRunTimestamp") private var lastRunTimestamp: Double = 0
 
     init() {
         if isAppBundle {
@@ -18,23 +20,44 @@ struct DeclutterApp: App {
 
     var body: some Scene {
         MenuBarExtra {
+            // Non-interactive identity label
+            Text("DigitalDeclutter")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .disabled(true)
+
+            Divider()
+
             if isRunning {
-                Button("Running Organizer...") { }
-                    .disabled(true)
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                        .frame(width: 14, height: 14)
+                    Text("Organizing files…")
+                }
+                .disabled(true)
             } else {
                 Button("Run Organizer Now") {
                     runOrganizer()
                 }
             }
 
-            Button("Run as Dry Run") {
+            Button("Preview Changes (Dry Run)") {
                 runOrganizer(dryRun: true)
             }
             .disabled(isRunning)
 
+            // Last-run timestamp (shown only after at least one run)
+            if lastRunTimestamp > 0 {
+                Text("Last run: \(relativeTimeString(from: lastRunTimestamp))")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .disabled(true)
+            }
+
             Divider()
 
-            Button("Preferences...") {
+            Button("Preferences…") {
                 NSApp.activate(ignoringOtherApps: true)
                 openSettings()
             }
@@ -54,8 +77,11 @@ struct DeclutterApp: App {
         }
 
         Settings {
-            SettingsView(config: $config)
-                .frame(width: 550, height: 450)
+            SettingsView(config: $config, onRunNow: { runOrganizer() })
+                .frame(
+                    minWidth: 560, idealWidth: 600, maxWidth: 800,
+                    minHeight: 460, idealHeight: 520, maxHeight: 700
+                )
                 .navigationTitle("DigitalDeclutter Preferences")
         }
     }
@@ -78,13 +104,27 @@ struct DeclutterApp: App {
             )
             await organizer.run()
 
+            // Record completion timestamp
+            lastRunTimestamp = Date().timeIntervalSince1970
+
             let title = dryRun ? "Dry Run Complete (Simulation)" : "Declutter Complete"
-            let subtitle = dryRun 
-                ? "Simulated moving files. Check terminal or logs." 
+            let subtitle = dryRun
+                ? "Simulated moving files. Check terminal or logs."
                 : "Your directories have been organized."
-            
+
             sendNotification(title: title, subtitle: subtitle)
             isRunning = false
+        }
+    }
+
+    /// Converts a Unix timestamp to a human-readable relative string (e.g. "5m ago").
+    private func relativeTimeString(from timestamp: Double) -> String {
+        let interval = Date().timeIntervalSince1970 - timestamp
+        switch interval {
+        case ..<60:        return "just now"
+        case ..<3_600:     return "\(Int(interval / 60))m ago"
+        case ..<86_400:    return "\(Int(interval / 3_600))h ago"
+        default:           return "\(Int(interval / 86_400))d ago"
         }
     }
 
