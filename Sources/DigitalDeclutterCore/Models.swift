@@ -13,6 +13,13 @@ public enum TermColor {
     public static let dim     = "\u{001B}[2m"
 }
 
+// MARK: - Automation Type
+
+public enum AutomationType: String, Codable {
+    case realTime
+    case scheduled
+}
+
 // MARK: - Configuration Model
 
 /// A rule that maps a set of file extensions to a destination directory.
@@ -39,11 +46,27 @@ public struct Configuration: Codable, Equatable {
     public var ignoredExtensions: Set<String>
     /// Directories to scan, relative to the user's home directory.
     public var sourceSubpaths: [String]
+    /// Whether background automation is enabled.
+    public var isAutomationEnabled: Bool
+    /// The type of background automation (realTime or scheduled).
+    public var automationType: AutomationType
+    /// The interval in minutes for scheduled runs.
+    public var scheduleIntervalMinutes: Int
 
-    public init(rules: [OrganizationRule], ignoredExtensions: Set<String>, sourceSubpaths: [String]) {
+    public init(
+        rules: [OrganizationRule],
+        ignoredExtensions: Set<String>,
+        sourceSubpaths: [String],
+        isAutomationEnabled: Bool = false,
+        automationType: AutomationType = .realTime,
+        scheduleIntervalMinutes: Int = 60
+    ) {
         self.rules = rules
         self.ignoredExtensions = ignoredExtensions
         self.sourceSubpaths = sourceSubpaths
+        self.isAutomationEnabled = isAutomationEnabled
+        self.automationType = automationType
+        self.scheduleIntervalMinutes = scheduleIntervalMinutes
     }
 
     /// The default built-in configuration.
@@ -66,8 +89,30 @@ public struct Configuration: Codable, Equatable {
             ),
         ],
         ignoredExtensions: ["crdownload", "download", "part", "tmp"],
-        sourceSubpaths: ["Desktop", "Downloads"]
+        sourceSubpaths: ["Desktop", "Downloads"],
+        isAutomationEnabled: false,
+        automationType: .realTime,
+        scheduleIntervalMinutes: 60
     )
+
+    private enum CodingKeys: String, CodingKey {
+        case rules
+        case ignoredExtensions
+        case sourceSubpaths
+        case isAutomationEnabled
+        case automationType
+        case scheduleIntervalMinutes
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.rules = try container.decode([OrganizationRule].self, forKey: .rules)
+        self.ignoredExtensions = try container.decode(Set<String>.self, forKey: .ignoredExtensions)
+        self.sourceSubpaths = try container.decode([String].self, forKey: .sourceSubpaths)
+        self.isAutomationEnabled = try container.decodeIfPresent(Bool.self, forKey: .isAutomationEnabled) ?? false
+        self.automationType = try container.decodeIfPresent(AutomationType.self, forKey: .automationType) ?? .realTime
+        self.scheduleIntervalMinutes = try container.decodeIfPresent(Int.self, forKey: .scheduleIntervalMinutes) ?? 60
+    }
 }
 
 // MARK: - Organizer Errors

@@ -32,6 +32,18 @@ This tab maps file categories and file extensions to their final destination sub
   - **Delete Rules**: Click the trash icon next to a rule to delete it permanently from your sorting configuration.
   - **Reorder Execution Precedence**: Click and drag rules to change their order, determining which category rules take precedence.
 
+### 3. Automation Tab (Background Automation)
+
+![Automation Tab](assets/image-2.png)
+
+This tab lets you configure automatic background sorting so DigitalDeclutter cleans your folders without manual intervention.
+
+- **What it does**: Controls background execution behavior, allowing you to choose between real-time or interval-based triggers.
+- **What you can do**:
+  - **Toggle Automation**: Turn automatic sorting on or off. When enabled, a status message (e.g. `Auto-Declutter: Real-Time`) is shown in the menu bar dropdown.
+  - **Real-Time Triggering**: Select **Real-Time** to monitor watched folders. Files are organized automatically approximately 2 seconds after they arrive in a monitored folder (using the macOS native `FSEvents` API with a built-in debouncer to let write operations finish).
+  - **Scheduled Interval**: Select **Scheduled Interval** and choose a duration (from 5 minutes up to 24 hours) to run background cleanups periodically.
+
 ## 📂 Project Overview
 
 DigitalDeclutter helps keep your workspace clean with zero effort. It detects files matching your configured rules, resolves name collisions gracefully, and avoids touching active downloads or system files.
@@ -41,6 +53,7 @@ DigitalDeclutter helps keep your workspace clean with zero effort. It detects fi
 - **Dual Interface**:
   - 🖥️ **CLI (`DigitalDeclutterCLI`)**: A fast command-line interface optimized for scripting, automated cron jobs, and quick manual cleanups.
   - 📥 **GUI (`DigitalDeclutterUI`)**: A native macOS Menu Bar application that triggers cleanups in one click, provides native system notifications, and features a visual configuration editor.
+- **Background Automation**: Run hands-free cleanups using either real-time file-system events (`FSEvents` with a 2-second debouncer to ensure copy/download operations finish) or recurring time-based intervals (e.g., every hour, daily).
 - **Intelligent Category Mapping**: Group files into clean categories like Images, Documents, and Installers.
 - **Safe Dry-Run Mode (`--dry-run`)**: Simulations let you preview what files will move and where they will go, without making changes to the filesystem.
 - **Local Sort Mode (`--local`)**: Moves files to folders _inside_ their source directory (e.g. `~/Desktop/Images`) instead of centralizing them (CLI only).
@@ -151,13 +164,19 @@ On the first run, the default configuration file is automatically created with t
     }
   ],
   "ignoredExtensions": ["crdownload", "download", "part", "tmp"],
-  "sourceSubpaths": ["Desktop", "Downloads"]
+  "sourceSubpaths": ["Desktop", "Downloads"],
+  "isAutomationEnabled": false,
+  "automationType": "realTime",
+  "scheduleIntervalMinutes": 60
 }
 ```
 
 - **`rules`**: Category rules defining target extensions and destination paths (subpaths relative to your home directory, e.g. `~/Pictures/Screenshots`).
 - **`ignoredExtensions`**: File extensions to skip completely.
 - **`sourceSubpaths`**: Root-level subpaths inside your home directory that the organizer scans.
+- **`isAutomationEnabled`**: Boolean determining whether background auto-decluttering is active.
+- **`automationType`**: String specifying trigger mode: `"realTime"` or `"scheduled"`.
+- **`scheduleIntervalMinutes`**: Integer defining periodic execution frequency.
 
 ---
 

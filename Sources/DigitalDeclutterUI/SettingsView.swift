@@ -54,7 +54,7 @@ struct SettingsView: View {
     // Saved indicator
     @State private var showSaved = false
 
-    enum Tab { case folders, rules }
+    enum Tab { case folders, rules, automation }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -72,6 +72,9 @@ struct SettingsView: View {
                         .transition(.asymmetric(insertion: .push(from: .leading), removal: .push(from: .trailing)))
                 case .rules:
                     rulesTab
+                        .transition(.opacity)
+                case .automation:
+                    automationTab
                         .transition(.asymmetric(insertion: .push(from: .trailing), removal: .push(from: .leading)))
                 }
             }
@@ -212,6 +215,9 @@ struct SettingsView: View {
                 }
                 TabButton(title: "Rules", icon: "slider.horizontal.3", isActive: activeTab == .rules) {
                     activeTab = .rules
+                }
+                TabButton(title: "Automation", icon: "cpu", isActive: activeTab == .automation) {
+                    activeTab = .automation
                 }
             }
             .padding(4)
@@ -542,6 +548,100 @@ struct SettingsView: View {
             withAnimation(.easeOut(duration: 0.4)) { showSaved = false }
         }
     }
+
+    // MARK: - Automation Tab
+
+    private var automationTab: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Automation Settings")
+                    .font(.headline)
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.top)
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    // Main Toggle Row
+                    HStack {
+                        Image(systemName: "cpu")
+                            .font(.system(size: 24))
+                            .foregroundStyle(config.isAutomationEnabled ? .green : .secondary)
+                            .symbolEffect(.bounce, value: config.isAutomationEnabled)
+                            .frame(width: 32, height: 32)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Enable Automatic Decluttering")
+                                .font(.headline)
+                            Text("Let DigitalDeclutter organize your folders silently in the background.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Toggle("", isOn: Binding(
+                            get: { config.isAutomationEnabled },
+                            set: { config.isAutomationEnabled = $0; persistAndFlash() }
+                        ))
+                        .toggleStyle(.switch)
+                    }
+                    .padding()
+                    .background(Color(NSColor.controlBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    
+                    if config.isAutomationEnabled {
+                        // Trigger Method Section
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Trigger Method")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+
+                            Picker("", selection: Binding(
+                                get: { config.automationType },
+                                set: { config.automationType = $0; persistAndFlash() }
+                            )) {
+                                Text("Real-Time (When a file is added)").tag(AutomationType.realTime)
+                                Text("Scheduled Interval (Periodically)").tag(AutomationType.scheduled)
+                            }
+                            .pickerStyle(.radioGroup)
+                            .padding(.leading, 8)
+                            
+                            if config.automationType == .scheduled {
+                                Divider()
+                                    .padding(.vertical, 4)
+                                
+                                HStack {
+                                    Text("Run Every:")
+                                        .font(.subheadline)
+                                    Spacer()
+                                    Picker("", selection: Binding(
+                                        get: { config.scheduleIntervalMinutes },
+                                        set: { config.scheduleIntervalMinutes = $0; persistAndFlash() }
+                                    )) {
+                                        Text("1 Minute (Testing)").tag(1)
+                                        Text("5 Minutes").tag(5)
+                                        Text("15 Minutes").tag(15)
+                                        Text("30 Minutes").tag(30)
+                                        Text("1 Hour").tag(60)
+                                        Text("3 Hours").tag(180)
+                                        Text("6 Hours").tag(360)
+                                        Text("12 Hours").tag(720)
+                                        Text("24 Hours").tag(1440)
+                                    }
+                                    .frame(width: 180)
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                }
+                .padding()
+            }
+        }
+    }
 }
 
 // MARK: - Tab Button
@@ -557,7 +657,9 @@ struct TabButton: View {
             HStack(spacing: 5) {
                 Image(systemName: icon)
                 Text(title)
+                    .lineLimit(1)
             }
+            .fixedSize(horizontal: true, vertical: false)
             .font(.system(size: 12, weight: isActive ? .semibold : .medium))
             .padding(.horizontal, 12)
             .padding(.vertical, 6)

@@ -6,11 +6,14 @@ import DigitalDeclutterCore
 struct DeclutterApp: App {
     @Environment(\.openSettings) private var openSettings
     @State private var config = Persistence.loadConfiguration()
-    @State private var isRunning = false
+    @StateObject private var automationManager = AutomationManager.shared
     /// Unix timestamp of the last completed run; 0 means never run.
     @AppStorage("lastRunTimestamp") private var lastRunTimestamp: Double = 0
 
     init() {
+        let loadedConfig = Persistence.loadConfiguration()
+        AutomationManager.shared.setup(config: loadedConfig)
+
         if isAppBundle {
             requestNotificationPermission()
         } else {
@@ -28,7 +31,23 @@ struct DeclutterApp: App {
 
             Divider()
 
-            if isRunning {
+            // Display active automation status
+            if config.isAutomationEnabled {
+                let statusText = config.automationType == .realTime ? "Auto-Declutter: Real-Time" : "Auto-Declutter: Scheduled"
+                Text(statusText)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .disabled(true)
+            } else {
+                Text("Auto-Declutter: Off")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .disabled(true)
+            }
+
+            Divider()
+
+            if automationManager.isRunning {
                 HStack(spacing: 6) {
                     ProgressView()
                         .scaleEffect(0.7)
@@ -38,14 +57,14 @@ struct DeclutterApp: App {
                 .disabled(true)
             } else {
                 Button("Run Organizer Now") {
-                    runOrganizer()
+                    automationManager.runOrganizer()
                 }
             }
 
             Button("Preview Changes (Dry Run)") {
-                runOrganizer(dryRun: true)
+                automationManager.runOrganizer(dryRun: true)
             }
-            .disabled(isRunning)
+            .disabled(automationManager.isRunning)
 
             // Last-run timestamp (shown only after at least one run)
             if lastRunTimestamp > 0 {
@@ -71,50 +90,26 @@ struct DeclutterApp: App {
             .keyboardShortcut("q", modifiers: .command)
         } label: {
             HStack {
-                Image(systemName: isRunning ? "arrow.triangle.2.circlepath.circle.fill" : "folder.badge.gearshape")
-                    .symbolEffect(.pulse, options: .repeating, value: isRunning)
+                Image(systemName: automationManager.isRunning ? "arrow.triangle.2.circlepath.circle.fill" : "folder.badge.gearshape")
+                    .symbolEffect(.pulse, options: .repeating, value: automationManager.isRunning)
             }
         }
 
         Settings {
-            SettingsView(config: $config, onRunNow: { runOrganizer() })
+            SettingsView(config: $config, onRunNow: { automationManager.runOrganizer() })
                 .frame(
-                    minWidth: 560, idealWidth: 600, maxWidth: 800,
+                    minWidth: 640, idealWidth: 680, maxWidth: 880,
                     minHeight: 460, idealHeight: 520, maxHeight: 700
                 )
                 .navigationTitle("DigitalDeclutter Preferences")
+                .onChange(of: config) { oldValue, newValue in
+                    automationManager.setup(config: newValue)
+                }
         }
     }
 
     private var isAppBundle: Bool {
         Bundle.main.bundleIdentifier != nil
-    }
-
-    private func runOrganizer(dryRun: Bool = false) {
-        isRunning = true
-        // Reload configuration before running to capture any manual edits to JSON
-        let currentConfig = Persistence.loadConfiguration()
-        config = currentConfig
-
-        Task {
-            let organizer = FileOrganizer(
-                configuration: currentConfig,
-                isDryRun: dryRun,
-                isLocal: false
-            )
-            await organizer.run()
-
-            // Record completion timestamp
-            lastRunTimestamp = Date().timeIntervalSince1970
-
-            let title = dryRun ? "Dry Run Complete (Simulation)" : "Declutter Complete"
-            let subtitle = dryRun
-                ? "Simulated moving files. Check terminal or logs."
-                : "Your directories have been organized."
-
-            sendNotification(title: title, subtitle: subtitle)
-            isRunning = false
-        }
     }
 
     /// Converts a Unix timestamp to a human-readable relative string (e.g. "5m ago").
@@ -135,23 +130,5 @@ struct DeclutterApp: App {
                 print("Notification permission error: \(error)")
             }
         }
-    }
-
-    private func sendNotification(title: String, subtitle: String) {
-        guard isAppBundle else {
-            print("🔔 [Notification Alert] \(title) — \(subtitle)")
-            return
-        }
-        let content = UNMutableNotificationContent()
-        content.title = title
-        content.body = subtitle
-        content.sound = .default
-
-        let request = UNNotificationRequest(
-            identifier: UUID().uuidString,
-            content: content,
-            trigger: nil
-        )
-        UNUserNotificationCenter.current().add(request)
     }
 }
